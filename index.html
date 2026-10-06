@@ -144,6 +144,53 @@
         /* PE 比對專用顏色 */
         .pe-green { background-color: rgba(187, 247, 208, 0.6); } /* 括號內 < 括號外 (淺綠) */
         .pe-red { background-color: rgba(254, 202, 202, 0.6); }   /* 括號內 > 括號外 (淺紅) */
+
+        /* P&L 相對 26 EPS 成長的達成進度 */
+        .progress-cell {
+            min-width: 150px;
+        }
+        .progress-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 145px;
+        }
+        .progress-track {
+            flex: 1;
+            height: 10px;
+            background: var(--border-color);
+            border-radius: 999px;
+            overflow: hidden;
+            min-width: 70px;
+        }
+        .progress-bar {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.25s ease;
+        }
+        .progress-normal {
+            background: #86efac;
+        }
+        .progress-near {
+            background: #facc15;
+        }
+        .progress-reached {
+            background: #fb923c;
+        }
+        .progress-over {
+            background: #ef4444;
+        }
+        .progress-text {
+            font-size: 0.78rem;
+            font-weight: 700;
+            min-width: 48px;
+            text-align: right;
+        }
+        .progress-detail {
+            font-size: 0.72rem;
+            color: var(--sub-text);
+            margin-top: 2px;
+        }
     </style>
 </head>
 <body>
@@ -217,6 +264,12 @@
     </div>
 </div>
 
+<div style="margin: -8px 0 16px; color: var(--sub-text); font-size: 0.82rem;">
+    📌 <b>P&L / 26 EPS 進度</b> = 正損益 ÷ 26 EPS 成長率。
+    例如 P&L +12%、26 EPS ↑ +20% → 60%；100% 代表股價漲幅已追上 EPS 成長。
+    僅對正損益且 26 EPS 成長為正數的標的顯示。
+</div>
+
 <div class="table-container">
     <table id="stockTable">
         <thead></thead>
@@ -285,6 +338,71 @@ function getPEClass(val) {
     return '';
 }
 
+function getPnlValue(row) {
+    return parseFloat(row['P&L %'] ?? row['profit_rate'] ?? NaN);
+}
+
+function getEpsGrowthValue(row) {
+    // 優先抓常見的 26 EPS YoY / 26 EPS↑ 欄位
+    const keys = Object.keys(row);
+    const key = keys.find(k => {
+        const s = k.toLowerCase().replace(/\s/g, '');
+        return s.includes('26') &&
+               (s.includes('eps') || s.includes('26eps')) &&
+               (s.includes('yoy') || s.includes('↑') || s.includes('%'));
+    });
+    if (!key) return NaN;
+    return parseFloat(row[key]);
+}
+
+function getProgressInfo(row) {
+    const pnl = getPnlValue(row);
+    const eps = getEpsGrowthValue(row);
+
+    // 只對「正損益 + 正 EPS 成長」計算進度
+    if (!Number.isFinite(pnl) || pnl <= 0 || !Number.isFinite(eps) || eps <= 0) {
+        return { valid: false, pct: 0, pnl, eps };
+    }
+
+    const ratio = (pnl / eps) * 100;
+    return {
+        valid: true,
+        pct: ratio,
+        pnl,
+        eps,
+        displayPct: Math.round(ratio)
+    };
+}
+
+function renderProgressCell(td, row) {
+    const info = getProgressInfo(row);
+    td.className = 'progress-cell';
+
+    if (!info.valid) {
+        td.innerHTML = '<span style="color:var(--sub-text)">—</span>';
+        td.title = '僅對正損益且 26 EPS 成長為正數的標的計算';
+        return;
+    }
+
+    const width = Math.min(Math.max(info.pct, 0), 100);
+    let barClass = 'progress-normal';
+    if (info.pct >= 100) barClass = 'progress-over';
+    else if (info.pct >= 80) barClass = 'progress-reached';
+    else if (info.pct >= 50) barClass = 'progress-near';
+
+    const status = info.pct >= 100 ? '已超過' : '未達';
+    td.innerHTML = `
+        <div class="progress-wrap">
+            <div class="progress-track">
+                <div class="progress-bar ${barClass}" style="width:${width}%"></div>
+            </div>
+            <span class="progress-text">${info.displayPct}%</span>
+        </div>
+        <div class="progress-detail">${status} EPS 成長基準</div>
+    `;
+    td.title = `P&L ${info.pnl.toFixed(1)}% ÷ 26 EPS 成長 ${info.eps.toFixed(1)}% = ${info.pct.toFixed(1)}%`;
+}
+
 function applyFilters() {
     const keyword = document.getElementById("search").value.toLowerCase();
     const pnlOpt = document.getElementById("filterPnl").value;
@@ -328,11 +446,17 @@ function applyFilters() {
 
     if (sortKey) {
         filtered.sort((a, b) => {
-            let valA = a[sortKey] ?? '';
-            let valB = b[sortKey] ?? '';
-            if (!isNaN(valA) && !isNaN(valB)) {
-                valA = parseFloat(valA);
-                valB = parseFloat(valB);
+            let valA, valB;
+            if (sortKey === '__pnl_eps_progress') {
+                valA = getProgressInfo(a).valid ? getProgressInfo(a).pct : -Infinity;
+                valB = getProgressInfo(b).valid ? getProgressInfo(b).pct : -Infinity;
+            } else {
+                valA = a[sortKey] ?? '';
+                valB = b[sortKey] ?? '';
+                if (!isNaN(valA) && !isNaN(valB)) {
+                    valA = parseFloat(valA);
+                    valB = parseFloat(valB);
+                }
             }
             if (valA < valB) return sortAsc ? -1 : 1;
             if (valA > valB) return sortAsc ? 1 : -1;
@@ -359,12 +483,22 @@ function renderTable(data) {
         return;
     }
 
-    const columns = Object.keys(stockData[0]);
+    const dataColumns = Object.keys(stockData[0]);
+
+    // 將「P&L vs 26 EPS 進度」插在 P&L 欄位後面
+    const pnlColumnIndex = dataColumns.findIndex(c => c.includes("P&L") || c.includes("profit_rate"));
+    const progressColumn = "__pnl_eps_progress";
+    const columns = [...dataColumns];
+    if (!columns.includes(progressColumn)) {
+        const insertAt = pnlColumnIndex >= 0 ? pnlColumnIndex + 1 : 0;
+        columns.splice(insertAt, 0, progressColumn);
+    }
 
     const headerRow = document.createElement("tr");
     columns.forEach(column => {
         const th = document.createElement("th");
-        th.textContent = column + (sortKey === column ? (sortAsc ? " ▲" : " ▼") : "");
+        const displayName = column === progressColumn ? "P&L / 26 EPS 進度" : column;
+        th.textContent = displayName + (sortKey === column ? (sortAsc ? " ▲" : " ▼") : "");
         th.onclick = () => {
             if (sortKey === column) {
                 sortAsc = !sortAsc;
@@ -382,6 +516,13 @@ function renderTable(data) {
         const tr = document.createElement("tr");
         columns.forEach(column => {
             const td = document.createElement("td");
+
+            if (column === progressColumn) {
+                renderProgressCell(td, row);
+                tr.appendChild(td);
+                return;
+            }
+
             let value = row[column];
 
             if (value === null || value === undefined) value = "N/A";
