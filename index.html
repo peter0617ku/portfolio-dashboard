@@ -186,6 +186,7 @@
             min-width: 48px;
             text-align: right;
         }
+        .progress-negative { background: #60a5fa; }
         .progress-detail {
             font-size: 0.72rem;
             color: var(--sub-text);
@@ -355,23 +356,51 @@ function getEpsGrowthValue(row) {
     return parseFloat(row[key]);
 }
 
+function getTargetInvestValue(row) {
+    const candidates = [
+        'Target Invest', 'target_invest', 'Target. Invest',
+        'Target Investment', 'target_investment', '目標投入', '目標投資'
+    ];
+    for (const key of candidates) {
+        if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
+            const value = parseFloat(String(row[key]).replace(/,/g, ''));
+            if (Number.isFinite(value)) return value;
+        }
+    }
+    return NaN;
+}
+
 function getProgressInfo(row) {
     const pnl = getPnlValue(row);
-    const eps = getEpsGrowthValue(row);
 
-    // 只對「正損益 + 正 EPS 成長」計算進度
-    if (!Number.isFinite(pnl) || pnl <= 0 || !Number.isFinite(eps) || eps <= 0) {
-        return { valid: false, pct: 0, pnl, eps };
+    // 正損益：P&L / 26 EPS YoY
+    if (Number.isFinite(pnl) && pnl > 0) {
+        const eps = getEpsGrowthValue(row);
+        if (!Number.isFinite(eps) || eps <= 0) {
+            return { mode: 'positive', valid: false, pct: 0, pnl, eps };
+        }
+        const ratio = (pnl / eps) * 100;
+        return {
+            mode: 'positive', valid: true, pct: ratio, pnl, eps,
+            displayPct: Math.round(ratio)
+        };
     }
 
-    const ratio = (pnl / eps) * 100;
-    return {
-        valid: true,
-        pct: ratio,
-        pnl,
-        eps,
-        displayPct: Math.round(ratio)
-    };
+    // 負損益：Curr. Invest / Target Invest
+    if (Number.isFinite(pnl) && pnl < 0) {
+        const curr = parseFloat(row['Curr. Invest'] ?? row['current_invest'] ?? NaN);
+        const target = getTargetInvestValue(row);
+        if (!Number.isFinite(curr) || !Number.isFinite(target) || target <= 0) {
+            return { mode: 'negative', valid: false, pct: 0, pnl, curr, target };
+        }
+        const ratio = (curr / target) * 100;
+        return {
+            mode: 'negative', valid: true, pct: ratio, pnl, curr, target,
+            displayPct: Math.round(ratio)
+        };
+    }
+
+    return { mode: 'none', valid: false, pct: 0, pnl };
 }
 
 function renderProgressCell(td, row) {
@@ -380,17 +409,38 @@ function renderProgressCell(td, row) {
 
     if (!info.valid) {
         td.innerHTML = '<span style="color:var(--sub-text)">—</span>';
-        td.title = '僅對正損益且 26 EPS 成長為正數的標的計算';
+        td.title = info.mode === 'negative'
+            ? '負損益，但沒有有效的 Target Invest 資料'
+            : '沒有足夠資料計算進度';
         return;
     }
 
     const width = Math.min(Math.max(info.pct, 0), 100);
-    let barClass = 'progress-normal';
-    if (info.pct >= 100) barClass = 'progress-over';
-    else if (info.pct >= 80) barClass = 'progress-reached';
-    else if (info.pct >= 50) barClass = 'progress-near';
 
-    const status = info.pct >= 100 ? '已超過' : '未達';
+    if (info.mode === 'positive') {
+        let barClass = 'progress-normal';
+        if (info.pct >= 100) barClass = 'progress-over';
+        else if (info.pct >= 80) barClass = 'progress-reached';
+        else if (info.pct >= 50) barClass = 'progress-near';
+
+        const status = info.pct >= 100 ? '已超過 EPS 基準' : '未達 EPS 基準';
+        td.innerHTML = `
+            <div class="progress-wrap">
+                <div class="progress-track">
+                    <div class="progress-bar ${barClass}" style="width:${width}%"></div>
+                </div>
+                <span class="progress-text">${info.displayPct}%</span>
+            </div>
+            <div class="progress-detail">P&L ${info.pnl.toFixed(1)}% / EPS +${info.eps.toFixed(1)}% · ${status}</div>
+        `;
+        td.title = `正損益：P&L ${info.pnl.toFixed(1)}% ÷ 26 EPS 成長 ${info.eps.toFixed(1)}% = ${info.pct.toFixed(1)}%`;
+        return;
+    }
+
+    // 負損益：用目前投入 / 目標投入
+    const barClass = info.pct >= 100 ? 'progress-over' : 'progress-negative';
+    const remaining = Math.max(info.target - info.curr, 0);
+    const status = info.pct >= 100 ? '已達/超過目標投入' : `還可投入 ${remaining.toLocaleString()}`;
     td.innerHTML = `
         <div class="progress-wrap">
             <div class="progress-track">
@@ -398,9 +448,9 @@ function renderProgressCell(td, row) {
             </div>
             <span class="progress-text">${info.displayPct}%</span>
         </div>
-        <div class="progress-detail">${status} EPS 成長基準</div>
+        <div class="progress-detail">${info.curr.toLocaleString()} / ${info.target.toLocaleString()} · ${status}</div>
     `;
-    td.title = `P&L ${info.pnl.toFixed(1)}% ÷ 26 EPS 成長 ${info.eps.toFixed(1)}% = ${info.pct.toFixed(1)}%`;
+    td.title = `負損益：Curr. Invest ${info.curr.toLocaleString()} ÷ Target Invest ${info.target.toLocaleString()} = ${info.pct.toFixed(1)}%`;
 }
 
 function applyFilters() {
@@ -497,9 +547,12 @@ function renderTable(data) {
     const headerRow = document.createElement("tr");
     columns.forEach(column => {
         const th = document.createElement("th");
-        const displayName = column === progressColumn ? "P&L / 26 EPS 進度" : column;
+        const displayName = column === progressColumn ? "進度" : column;
         th.textContent = displayName + (sortKey === column ? (sortAsc ? " ▲" : " ▼") : "");
-        th.onclick = () => {
+        if (column === progressColumn) {
+            th.style.cursor = "default";
+            th.title = "正損益：P&L / 26 EPS；負損益：Curr. Invest / Target Invest";
+        } else th.onclick = () => {
             if (sortKey === column) {
                 sortAsc = !sortAsc;
             } else {
