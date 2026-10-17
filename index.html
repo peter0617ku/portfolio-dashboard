@@ -141,6 +141,12 @@
         .inv-tier3 { background-color: rgba(191, 219, 254, 0.7); }
         .inv-tier4 { background-color: rgba(147, 197, 253, 0.9); font-weight: bold; }
 
+        /* above_ma 四個均線欄位：true 綠底、false 紅底 */
+        .ma-true { background-color: rgba(34, 197, 94, 0.22); color: #166534; font-weight: 700; }
+        .ma-false { background-color: rgba(239, 68, 68, 0.20); color: #991b1b; font-weight: 700; }
+        [data-theme="dark"] .ma-true { background-color: rgba(34, 197, 94, 0.30); color: #bbf7d0; }
+        [data-theme="dark"] .ma-false { background-color: rgba(239, 68, 68, 0.30); color: #fecaca; }
+
         /* PE 比對專用顏色 */
         .pe-green { background-color: rgba(187, 247, 208, 0.6); } /* 括號內 < 括號外 (淺綠) */
         .pe-red { background-color: rgba(254, 202, 202, 0.6); }   /* 括號內 > 括號外 (淺紅) */
@@ -582,7 +588,17 @@ function renderTable(data) {
             td.textContent = value;
 
             // 各欄位視覺套用邏輯
-            if (column.includes("P&L") || column.includes("profit_rate")) {
+            // above_ma 的四個欄位以 true 綠底、false 紅底強化辨識
+            if (/^above_ma(?:20|60|120|240)$/.test(column)) {
+                const normalized = typeof value === "string" ? value.toLowerCase().trim() : value;
+                if (normalized === true || normalized === "true") {
+                    td.className = "ma-true";
+                    td.textContent = "TRUE";
+                } else if (normalized === false || normalized === "false") {
+                    td.className = "ma-false";
+                    td.textContent = "FALSE";
+                }
+            } else if (column.includes("P&L") || column.includes("profit_rate")) {
                 td.className = getPnlClass(value);
             } else if (column.includes("Add Score") || column.includes("add_score")) {
                 td.className = getScoreClass(value);
