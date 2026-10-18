@@ -198,6 +198,71 @@
             color: var(--sub-text);
             margin-top: 2px;
         }
+
+        /* ===== 進階篩選面板 (PE 修正後優先 / EPS 成長率) ===== */
+        .filter-panel {
+            background: var(--card-bg);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            padding: 15px;
+            margin-bottom: 20px;
+            transition: border-color 0.2s;
+        }
+        .filter-panel.has-configured-filters { border-color: #22c55e; }
+        .filter-heading {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            flex-wrap: wrap; gap: 10px; margin-bottom: 10px;
+        }
+        .filter-heading h2 { margin: 0 0 4px; font-size: 1.1rem; }
+        .filter-heading p { margin: 0; color: var(--sub-text); font-size: 0.8rem; }
+        .filter-actions { display: flex; gap: 8px; }
+        .filter-panel button {
+            padding: 7px 14px; border: 1px solid var(--border-color); border-radius: 4px;
+            background: var(--card-bg); color: var(--text-color); cursor: pointer; font-size: 0.85rem;
+        }
+        .filter-panel button:hover { background: var(--hover-bg); }
+        .filter-panel button.primary-btn { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .filter-panel button.primary-btn:hover { background: #1d4ed8; }
+        .preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .preset-label { font-size: 0.8rem; font-weight: bold; color: var(--sub-text); }
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 14px;
+        }
+        .filter-group {
+            display: flex; flex-direction: column; gap: 5px;
+            border: 1px solid var(--border-color); border-radius: 6px; padding: 12px;
+        }
+        .filter-group h3 {
+            margin: 0 0 4px; font-size: 0.95rem;
+            display: flex; justify-content: space-between; align-items: center; gap: 8px;
+        }
+        .filter-group label { font-size: 0.78rem; font-weight: bold; color: var(--sub-text); margin-top: 4px; }
+        .filter-group label.is-configured-label { color: #15803d; }
+        .filter-group select.is-configured {
+            border: 2px solid #22c55e;
+            background: rgba(34, 197, 94, 0.12);
+            font-weight: 700;
+        }
+        .group-configured-count {
+            font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+            background: var(--border-color); color: var(--sub-text);
+        }
+        .group-configured-count.has-configured { background: rgba(34, 197, 94, 0.2); color: #15803d; }
+        [data-theme="dark"] .filter-group label.is-configured-label,
+        [data-theme="dark"] .group-configured-count.has-configured { color: #86efac; }
+        .filter-group .hint { margin: 6px 0 0; font-size: 0.72rem; color: var(--sub-text); }
+        .active-filters {
+            margin-top: 12px; font-size: 0.85rem;
+            display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        }
+        .result-count { margin-left: auto; font-weight: 700; }
+        .pe-fallback-tag {
+            font-size: 0.68rem; color: var(--sub-text); border: 1px solid var(--border-color);
+            border-radius: 4px; padding: 0 4px; margin-left: 4px;
+        }
     </style>
 </head>
 <body>
@@ -271,7 +336,67 @@
     </div>
 </div>
 
-<div style="margin: -8px 0 16px; color: var(--sub-text); font-size: 0.82rem;">
+<section class="filter-panel" id="filterPanel">
+    <div class="filter-heading">
+        <div>
+            <h2>進階篩選：本益比 / EPS 成長率</h2>
+            <p>上下限留白代表不限制；已設定的欄位會以綠色標示。資料缺值時，設定該條件的股票會被排除（不會當成 0）。</p>
+        </div>
+        <div class="filter-actions">
+            <button type="button" id="clearAdvFilters">清除條件</button>
+        </div>
+    </div>
+
+    <div class="preset-row">
+        <span class="preset-label">快速策略</span>
+        <button type="button" class="preset-btn" data-preset="convergence">高成長估值收斂</button>
+        <button type="button" class="preset-btn" data-preset="growth">成長股合理價</button>
+        <button type="button" class="preset-btn" data-preset="lowpe">低本益比</button>
+        <button type="button" class="preset-btn" data-preset="highgrowth">高成長潛力</button>
+        <button type="button" class="preset-btn" data-preset="leftside">左側觀察名單</button>
+    </div>
+
+    <div class="filter-grid">
+        <div class="filter-group">
+            <h3>本益比 PE</h3>
+            <label for="pe26Min">2026 PE 下限</label>
+            <select id="pe26Min"></select>
+            <label for="pe26Max">2026 PE 上限</label>
+            <select id="pe26Max"></select>
+            <label for="pe27Min">2027 PE 下限</label>
+            <select id="pe27Min"></select>
+            <label for="pe27Max">2027 PE 上限</label>
+            <select id="pe27Max"></select>
+            <label for="peType">PE 欄位版本</label>
+            <select id="peType">
+                <option value="raw">原始本益比</option>
+                <option value="adjusted" selected>修正後本益比（缺值回退原始）</option>
+            </select>
+            <p class="hint">資料格式為「原始 (修正後)」；沒有修正後數值時自動改用原始本益比。</p>
+        </div>
+
+        <div class="filter-group">
+            <h3>EPS 成長率 YoY (%)</h3>
+            <label for="eps26Min">2026 EPS 成長 下限</label>
+            <select id="eps26Min"></select>
+            <label for="eps26Max">2026 EPS 成長 上限</label>
+            <select id="eps26Max"></select>
+            <label for="eps27Min">2027 EPS 成長 下限</label>
+            <select id="eps27Min"></select>
+            <label for="eps27Max">2027 EPS 成長 上限</label>
+            <select id="eps27Max"></select>
+            <p class="hint">負成長可用負數門檻篩選；ETF 等沒有 EPS 資料的標的，在設定此條件後會被排除。</p>
+        </div>
+    </div>
+
+    <div class="active-filters">
+        <strong>目前進階條件：</strong>
+        <span id="filterSummary">尚未設定</span>
+        <span class="result-count" id="resultCount"></span>
+    </div>
+</section>
+
+<div style="margin: 0 0 16px; color: var(--sub-text); font-size: 0.82rem;">
     📌 <b>P&L / 26 EPS 進度</b> = 正損益 ÷ 26 EPS 成長率。
     例如 P&L +12%、26 EPS ↑ +20% → 60%；100% 代表股價漲幅已追上 EPS 成長。
     僅對正損益且 26 EPS 成長為正數的標的顯示。
@@ -349,17 +474,160 @@ function getPnlValue(row) {
     return parseFloat(row['P&L %'] ?? row['profit_rate'] ?? NaN);
 }
 
-function getEpsGrowthValue(row) {
-    // 優先抓常見的 26 EPS YoY / 26 EPS↑ 欄位
-    const keys = Object.keys(row);
-    const key = keys.find(k => {
+function getEpsGrowthByYear(row, year) {
+    // 尋找 "26 EPS↑(%)" / "26 EPS YoY" 之類的欄位
+    const key = Object.keys(row).find(k => {
         const s = k.toLowerCase().replace(/\s/g, '');
-        return s.includes('26') &&
-               (s.includes('eps') || s.includes('26eps')) &&
+        return s.startsWith(String(year)) && s.includes('eps') &&
                (s.includes('yoy') || s.includes('↑') || s.includes('%'));
     });
     if (!key) return NaN;
-    return parseFloat(row[key]);
+    const v = row[key];
+    if (v === null || v === undefined || String(v).trim() === '') return NaN;
+    return parseFloat(String(v).replace(/,/g, '').replace(/%/g, ''));
+}
+
+function getEpsGrowthValue(row) {
+    return getEpsGrowthByYear(row, 26);
+}
+
+// ===== 本益比解析：格式為 "原始 (修正後)"、單一數字（只有原始）或 null =====
+function parsePE(row, year) {
+    const key = Object.keys(row).find(k => k.replace(/\s/g, '').toUpperCase() === `${year}PE`);
+    const result = { raw: null, adjusted: null };
+    if (!key) return result;
+    const v = row[key];
+    if (v === null || v === undefined) return result;
+    if (typeof v === 'number') {
+        if (Number.isFinite(v)) result.raw = v;
+        return result;
+    }
+    const m = String(v).trim().match(/^(-?[\d.,]+)\s*(?:\(\s*(-?[\d.,]+)\s*\))?$/);
+    if (!m) return result;
+    const toNum = x => {
+        if (x === undefined) return null;
+        const n = parseFloat(x.replace(/,/g, ''));
+        return Number.isFinite(n) ? n : null;
+    };
+    result.raw = toNum(m[1]);
+    result.adjusted = toNum(m[2]);
+    return result;
+}
+
+// 修正後優先；修正後缺值/非數字 → 退回原始
+function getPEValue(row, year, mode) {
+    const pe = parsePE(row, year);
+    if (mode === 'adjusted') {
+        if (pe.adjusted !== null) return { value: pe.adjusted, source: 'adjusted' };
+        if (pe.raw !== null) return { value: pe.raw, source: 'raw-fallback' };
+        return { value: null, source: 'none' };
+    }
+    return pe.raw !== null ? { value: pe.raw, source: 'raw' } : { value: null, source: 'none' };
+}
+
+// ===== 進階篩選 =====
+function addBoundOptions(id, values, suffix) {
+    const el = document.getElementById(id);
+    el.innerHTML = '<option value="">不限</option>' +
+        values.map(v => `<option value="${v}">${v}${suffix}</option>`).join('');
+}
+
+function initAdvFilterOptions() {
+    const pe = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+    ['pe26Min', 'pe26Max', 'pe27Min', 'pe27Max'].forEach(id => addBoundOptions(id, pe, ' 倍'));
+    const eps = [-100, -50, -20, -10, 0, 10, 20, 30, 50, 75, 100, 150, 200, 300];
+    ['eps26Min', 'eps26Max', 'eps27Min', 'eps27Max'].forEach(id => addBoundOptions(id, eps, '%'));
+}
+
+function readAdvFilters() {
+    const read = id => {
+        const v = document.getElementById(id).value;
+        return v === '' ? null : Number(v);
+    };
+    return {
+        peType: document.getElementById('peType').value,
+        pe26Min: read('pe26Min'), pe26Max: read('pe26Max'),
+        pe27Min: read('pe27Min'), pe27Max: read('pe27Max'),
+        eps26Min: read('eps26Min'), eps26Max: read('eps26Max'),
+        eps27Min: read('eps27Min'), eps27Max: read('eps27Max')
+    };
+}
+
+function inRange(value, min, max) {
+    if (min === null && max === null) return true;       // 未設定 → 不過濾
+    if (value === null || !Number.isFinite(value)) return false; // 有設定但缺值 → 排除
+    if (min !== null && value < min) return false;
+    if (max !== null && value > max) return false;
+    return true;
+}
+
+function passesAdvFilters(row, f) {
+    const pe26 = getPEValue(row, 26, f.peType).value;
+    const pe27 = getPEValue(row, 27, f.peType).value;
+    const g26 = getEpsGrowthByYear(row, 26);
+    const g27 = getEpsGrowthByYear(row, 27);
+    return inRange(pe26, f.pe26Min, f.pe26Max) &&
+           inRange(pe27, f.pe27Min, f.pe27Max) &&
+           inRange(Number.isFinite(g26) ? g26 : null, f.eps26Min, f.eps26Max) &&
+           inRange(Number.isFinite(g27) ? g27 : null, f.eps27Min, f.eps27Max);
+}
+
+function updateAdvFilterUI() {
+    let total = 0;
+    document.querySelectorAll('#filterPanel .filter-group').forEach(group => {
+        let configured = 0;
+        group.querySelectorAll('select').forEach(sel => {
+            const on = sel.id !== 'peType' && sel.value !== '';
+            sel.classList.toggle('is-configured', on);
+            const lb = group.querySelector(`label[for="${sel.id}"]`);
+            if (lb) lb.classList.toggle('is-configured-label', on);
+            if (on) configured++;
+        });
+        total += configured;
+        let tag = group.querySelector('.group-configured-count');
+        if (!tag) {
+            tag = document.createElement('span');
+            tag.className = 'group-configured-count';
+            group.querySelector('h3').appendChild(tag);
+        }
+        tag.textContent = configured ? `已設定 ${configured}` : '尚未設定';
+        tag.classList.toggle('has-configured', configured > 0);
+    });
+    document.getElementById('filterPanel').classList.toggle('has-configured-filters', total > 0);
+
+    const f = readAdvFilters();
+    const labels = [];
+    const add = (name, min, max, suf) => {
+        if (min !== null && max !== null) labels.push(`${name} ${min}～${max}${suf}`);
+        else if (min !== null) labels.push(`${name} ≥ ${min}${suf}`);
+        else if (max !== null) labels.push(`${name} ≤ ${max}${suf}`);
+    };
+    add('26 PE', f.pe26Min, f.pe26Max, 'x');
+    add('27 PE', f.pe27Min, f.pe27Max, 'x');
+    add('26 EPS成長', f.eps26Min, f.eps26Max, '%');
+    add('27 EPS成長', f.eps27Min, f.eps27Max, '%');
+    if (labels.some(x => x.includes('PE'))) {
+        labels.push(f.peType === 'adjusted' ? '使用修正 PE（缺值回退原始）' : '使用原始 PE');
+    }
+    document.getElementById('filterSummary').textContent = labels.length ? labels.join('　｜　') : '尚未設定';
+}
+
+function clearAdvFilters() {
+    document.querySelectorAll('#filterPanel select').forEach(el => el.value = '');
+    document.getElementById('peType').value = 'adjusted';
+    applyFilters();
+}
+
+function applyPreset(name) {
+    clearAdvFilters();
+    document.getElementById('peType').value = 'adjusted';
+    const set = (id, v) => document.getElementById(id).value = String(v);
+    if (name === 'convergence') { set('pe26Min', 25); set('pe27Max', 20); set('eps27Min', 50); }
+    else if (name === 'growth') { set('pe27Max', 25); set('eps27Min', 20); }
+    else if (name === 'lowpe') { set('pe26Max', 15); set('pe27Max', 15); }
+    else if (name === 'highgrowth') { set('eps27Min', 50); set('eps26Min', 20); }
+    else if (name === 'leftside') { set('pe27Max', 20); set('eps27Min', 30); }
+    applyFilters();
 }
 
 function getTargetInvestValue(row) {
@@ -465,6 +733,8 @@ function applyFilters() {
     const investOpt = document.getElementById("filterInvest").value;
     const scoreOpt = document.getElementById("filterScore").value;
     const maOpt = document.getElementById("filterMA").value;
+    const adv = readAdvFilters();
+    updateAdvFilterUI();
 
     let filtered = stockData.filter(row => {
         const matchesSearch = Object.values(row).join(" ").toLowerCase().includes(keyword);
@@ -497,7 +767,9 @@ function applyFilters() {
             matchesMA = row[maOpt] === true || row['below_' + maOpt] === true;
         }
 
-        return matchesSearch && matchesPnl && matchesInvest && matchesScore && matchesMA;
+        const matchesAdv = passesAdvFilters(row, adv);
+
+        return matchesSearch && matchesPnl && matchesInvest && matchesScore && matchesMA && matchesAdv;
     });
 
     if (sortKey) {
@@ -521,6 +793,7 @@ function applyFilters() {
     }
 
     renderTable(filtered);
+    document.getElementById("resultCount").textContent = `顯示 ${filtered.length} / ${stockData.length} 檔`;
 
     document.getElementById("updated").textContent =
         `顯示筆數：${filtered.length} / ${stockData.length} 檔 ｜ 最後更新：${new Date().toLocaleString("zh-TW")}`;
@@ -606,6 +879,21 @@ function renderTable(data) {
                 td.className = getInvestClass(value);
             } else if (column.toUpperCase().includes("PE") || column.includes("本益比")) {
                 td.className = getPEClass(String(value));
+                const peMatch = column.match(/(26|27)/);
+                if (peMatch && /PE|本益比/i.test(column)) {
+                    const info = getPEValue(row, peMatch[1], document.getElementById('peType').value);
+                    if (info.value !== null) {
+                        td.title = info.source === 'adjusted' ? `使用修正後本益比 ${info.value}`
+                                 : info.source === 'raw-fallback' ? `無修正後本益比，退回原始 ${info.value}`
+                                 : `使用原始本益比 ${info.value}`;
+                        if (info.source === 'raw-fallback') {
+                            const tag = document.createElement('span');
+                            tag.className = 'pe-fallback-tag';
+                            tag.textContent = '原始';
+                            td.appendChild(tag);
+                        }
+                    }
+                }
             }
 
             tr.appendChild(td);
@@ -623,6 +911,12 @@ function toggleTheme() {
 document.querySelectorAll(".controls-card select, .controls-card input").forEach(element => {
     element.addEventListener("input", applyFilters);
 });
+
+initAdvFilterOptions();
+document.querySelectorAll("#filterPanel select").forEach(el => el.addEventListener("change", applyFilters));
+document.getElementById("clearAdvFilters").addEventListener("click", clearAdvFilters);
+document.querySelectorAll(".preset-btn").forEach(btn =>
+    btn.addEventListener("click", () => applyPreset(btn.dataset.preset)));
 
 loadData();
 </script>
