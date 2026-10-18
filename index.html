@@ -231,6 +231,10 @@
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 14px;
         }
+        .preset-btn.reverse { border-color: #ef4444; color: #b91c1c; }
+        .preset-btn.reverse:hover { background: rgba(239, 68, 68, 0.12); }
+        .preset-label.reverse { color: #b91c1c; }
+        [data-theme="dark"] .preset-btn.reverse, [data-theme="dark"] .preset-label.reverse { color: #fca5a5; }
         .filter-group {
             display: flex; flex-direction: column; gap: 5px;
             border: 1px solid var(--border-color); border-radius: 6px; padding: 12px;
@@ -354,6 +358,15 @@
         <button type="button" class="preset-btn" data-preset="lowpe">低本益比</button>
         <button type="button" class="preset-btn" data-preset="highgrowth">高成長潛力</button>
         <button type="button" class="preset-btn" data-preset="leftside">左側觀察名單</button>
+    </div>
+
+    <div class="preset-row">
+        <span class="preset-label reverse">淘汰檢視</span>
+        <button type="button" class="preset-btn reverse" data-preset="r_divergence" title="26 PE ≤ 20、27 PE ≥ 25、27 EPS 成長 ≤ 10%">估值發散</button>
+        <button type="button" class="preset-btn reverse" data-preset="r_expensive" title="27 PE ≥ 25、27 EPS 成長 ≤ 20%">高價低成長</button>
+        <button type="button" class="preset-btn reverse" data-preset="r_highpe" title="26 PE ≥ 30、27 PE ≥ 30">高本益比</button>
+        <button type="button" class="preset-btn reverse" data-preset="r_decline" title="26、27 EPS 成長皆 ≤ 10%">成長衰退</button>
+        <button type="button" class="preset-btn reverse" data-preset="r_risk" title="27 PE ≥ 30、27 EPS 成長 ≤ 30%">高位風險名單</button>
     </div>
 
     <div class="filter-grid">
@@ -627,6 +640,12 @@ function applyPreset(name) {
     else if (name === 'lowpe') { set('pe26Max', 15); set('pe27Max', 15); }
     else if (name === 'highgrowth') { set('eps27Min', 50); set('eps26Min', 20); }
     else if (name === 'leftside') { set('pe27Max', 20); set('eps27Min', 30); }
+    // ===== 反向策略：優先淘汰名單 =====
+    else if (name === 'r_divergence') { set('pe26Max', 20); set('pe27Min', 25); set('eps27Max', 10); } // 收斂的相反：PE 愈來愈貴、EPS 沒成長
+    else if (name === 'r_expensive') { set('pe27Min', 25); set('eps27Max', 20); }                   // 合理價的相反：貴又長不大
+    else if (name === 'r_highpe') { set('pe26Min', 30); set('pe27Min', 30); }                       // 低本益比的相反
+    else if (name === 'r_decline') { set('eps26Max', 10); set('eps27Max', 10); }                    // 高成長的相反
+    else if (name === 'r_risk') { set('pe27Min', 30); set('eps27Max', 30); }                        // 左側觀察的相反：高估值、成長不足
     applyFilters();
 }
 
