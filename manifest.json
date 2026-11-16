@@ -1,0 +1,17 @@
+{
+  "name": "股票投資組合儀表板",
+  "short_name": "股票庫存",
+  "description": "自動化股票庫存與損益追蹤儀表板",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+    "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "246x246",
+      "type": "image/png"
+    }
+  ]
+}
